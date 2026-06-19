@@ -20,27 +20,41 @@ A real-time 3D driving simulator built with Three.js that renders a side-view ca
 ```
 ├── index.html        # Entry point; loads src/main.ts as ES module
 ├── src/
-│   └── main.ts       # All game logic (~1200 lines, single-file architecture)
+│   ├── main.ts       # Entry — imports all modules, calls start()
+│   ├── types.ts      # Shared interfaces (GameConfig, SceneryPool, etc.)
+│   ├── config.ts     # CONFIG constant (tunable game parameters)
+│   ├── scene.ts      # Renderer, scene, camera, sky, sun, lighting
+│   ├── road.ts       # Road group (surface, lines, grass)
+│   ├── car.ts        # Car model + wheelMeshes (procedural geometry)
+│   ├── scenery.ts    # Factory functions + object-pooled parallax layers
+│   ├── camera.ts     # Camera controls (mouse orbit, WASD, touch, zoom)
+│   ├── particles.ts  # Dust particle system (PointsMaterial)
+│   └── loop.ts       # animate() loop + resize handler (orchestrator)
 ├── style.css         # Minimal overlay styles
 ├── tsconfig.json     # TypeScript config (strict, noEmit)
 ├── package.json      # Dependencies + scripts
 └── PROMPT.md         # Original design brief
 ```
 
-**`src/main.ts` structure (top to bottom):**
+**Module dependency graph (no circular deps):**
 
-1. Type declarations (`GameConfig`, `SceneryPool`, `CameraControls`, etc.)
-2. `CONFIG` — tunable constants (speed, road dimensions, colors, fog)
-3. Scene, renderer, camera setup
-4. IIFE blocks: sky dome, sun disc, lighting (ambient + directional + hemisphere + back)
-5. Road group (surface, edge lines, dashed center, grass)
-6. Car model (body, cabin, wheels, mirrors, lights — procedural geometry)
-7. Scenery factory functions (`createTree`, `createPole`, `createCloud`, etc.)
-8. Scenery pools + `initPool` (object-pooled parallax layers)
-9. Camera controls (mouse orbit, scroll zoom, WASD pan, touch)
-10. Dust particle system (`PointsMaterial`)
-11. `animate()` loop (wheel spin, car bob, pool recycling, particles, camera, render)
-12. Resize handler
+```
+types ← config ← scene ←──┬→ road
+                          ├──→ car
+                          ├──→ camera
+                          └──→ particles
+{types, config, scene} → scenery
+{all modules}          → loop ← main.ts
+```
+
+**`loop.ts` orchestrates the game loop**, calling `update(dt)` on each subsystem:
+
+- Wheel rotation + car body bob → `car.ts`
+- Scenery pool recycling → `scenery.ts`
+- Road dash scrolling → `road.ts`
+- Particle update → `particles.ts`
+- Camera orbit + WASD → `camera.ts`
+- Final render → `scene.ts`
 
 ## Commands
 
@@ -56,8 +70,8 @@ No test runner or linter is configured. Add one before introducing complex refac
 
 ### ✅ Always
 
-- Keep `CONFIG` at the top of `src/main.ts` as the single source of tunable values.
-- Define interfaces at the top of the file (see `GameConfig`, `SceneryPool`, etc.).
+- Keep `CONFIG` in `src/config.ts` as the single source of tunable values.
+- Define interfaces in `src/types.ts` and import where needed.
 - Use explicit return types on all functions (`: void`, `: THREE.Group`, etc.).
 - Use IIFE blocks (`(function() { … })()`) for self-contained scene setup sections.
 - Prefer `THREE.Group` hierarchies for composite objects (car, trees, poles).
@@ -77,7 +91,8 @@ No test runner or linter is configured. Add one before introducing complex refac
 - Inline-create geometry or materials inside the `animate()` loop (causes GC pressure).
 - Use `innerHTML` or inline event handlers in HTML.
 - Add inline CSS styles to elements; extend `style.css` instead.
-- Break the single-file architecture by splitting `src/main.ts` unless the file exceeds 1200 lines or a new agent explicitly proposes a modular refactor in a commit.
+- Introduce circular dependencies between modules. If two modules need each other, extract the shared types into `types.ts`.
+- Add side effects to modules imported only for types — use `import type { … }` instead.
 
 ## Code Style
 
@@ -137,7 +152,7 @@ function createTree(): THREE.Group {
 
 ## Notes for Future Refactors
 
-- If splitting `src/main.ts` into modules, keep the `CONFIG` object and type declarations in `src/types.ts` and import them everywhere.
-- Consider extracting scenery factories into `scenery/` before the file exceeds 1200 lines.
+- `scenery.ts` is the largest module (~300 lines). If it grows beyond 400 lines, split factories into `scenery/factories.ts`.
+- `car.ts` could export a `buildCar()` function instead of a module-level singleton, enabling multiple cars or scene presets.
 - A proper build step (Vite or esbuild) is not needed until ES module imports grow beyond `three` + local CSS.
 - `tsconfig.json` uses `noEmit: true` — Bun handles transpilation at runtime. If a build step is added later, switch to `module: "ESNext"` with a bundler.
