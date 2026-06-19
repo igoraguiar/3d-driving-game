@@ -1,8 +1,75 @@
 import * as THREE from "three";
-import "./style.css";
+
+// ─── TYPES ───────────────────────────────────────────────────
+
+interface GameConfig {
+	speed: number;
+	roadWidth: number;
+	roadLength: number;
+	sceneryInterval: number;
+	treeCount: number;
+	hillCount: number;
+	poleCount: number;
+	cloudCount: number;
+	fogNear: number;
+	fogFar: number;
+	bobFrequency: number;
+	bobAmplitude: number;
+	bobRollAmplitude: number;
+	sunColor: number;
+	skyTop: number;
+	skyBottom: number;
+	fogColor: number;
+	ambientIntensity: number;
+	dirIntensity: number;
+}
+
+interface WheelPosition {
+	x: number;
+	y: number;
+	z: number;
+}
+
+interface SceneryPool {
+	items: THREE.Group[];
+	speed: number;
+	zMin: number;
+	zMax: number;
+	count: number;
+}
+
+interface SceneryPools {
+	nearGround: SceneryPool;
+	trees: SceneryPool;
+	poles: SceneryPool;
+	midGround: SceneryPool;
+	farHills: SceneryPool;
+	clouds: SceneryPool;
+	otherCars: SceneryPool;
+}
+
+interface CameraControls {
+	basePosition: THREE.Vector3;
+	position: THREE.Vector3;
+	target: THREE.Vector3;
+	lookTarget: THREE.Vector3;
+	isDragging: boolean;
+	prevMouse: { x: number; y: number };
+	orbitX: number;
+	orbitY: number;
+	orbitRadius: number;
+	offset: THREE.Vector3;
+	zoom: number;
+	orbitTarget: THREE.Vector3;
+}
+
+type KeyState = Record<string, boolean>;
+type CreateFn = () => THREE.Object3D;
+type PositionFn = (item: THREE.Object3D, i: number, total: number) => void;
 
 // ─── CONFIG ──────────────────────────────────────────────────
-const CONFIG = {
+
+const CONFIG: GameConfig = {
 	speed: 40,
 	roadWidth: 10,
 	roadLength: 400,
@@ -25,7 +92,8 @@ const CONFIG = {
 };
 
 // ─── SCENE SETUP ─────────────────────────────────────────────
-const canvas = document.getElementById("c");
+
+const canvas = document.getElementById("c") as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -46,6 +114,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(6, 3.5, 10);
 
 // ─── GRADIENT SKY ────────────────────────────────────────────
+
 (function createSky() {
 	const skyGeo = new THREE.SphereGeometry(350, 32, 32);
 	const skyMat = new THREE.ShaderMaterial({
@@ -82,6 +151,7 @@ camera.position.set(6, 3.5, 10);
 })();
 
 // ─── SUN DISC ─────────────────────────────────────────────────
+
 (function createSun() {
 	const sunGeo = new THREE.CircleGeometry(18, 48);
 	const sunMat = new THREE.MeshBasicMaterial({
@@ -109,6 +179,7 @@ camera.position.set(6, 3.5, 10);
 })();
 
 // ─── LIGHTING ─────────────────────────────────────────────────
+
 // r128 used arbitrary intensity units; r184+ uses physically-based (lux).
 // Scale up to match the original look.
 const ambientLight = new THREE.AmbientLight(
@@ -143,6 +214,7 @@ backLight.position.set(10, 8, 15);
 scene.add(backLight);
 
 // ─── ROAD ─────────────────────────────────────────────────────
+
 const roadGroup = new THREE.Group();
 scene.add(roadGroup);
 
@@ -164,7 +236,7 @@ road.receiveShadow = true;
 roadGroup.add(road);
 
 // road edges (white lines)
-function makeRoadEdge(side) {
+function makeRoadEdge(side: number): THREE.Mesh {
 	const geo = new THREE.PlaneGeometry(0.25, CONFIG.roadLength, 1, 20);
 	const mat = new THREE.MeshStandardMaterial({
 		color: 0xeeeeee,
@@ -179,10 +251,10 @@ roadGroup.add(makeRoadEdge(-1));
 roadGroup.add(makeRoadEdge(1));
 
 // center dashed line
-function makeDashLine() {
+function makeDashLine(): THREE.Group {
 	const group = new THREE.Group();
-	const dashLen = 2.5,
-		gap = 2.0;
+	const dashLen = 2.5;
+	const gap = 2.0;
 	const total = CONFIG.roadLength;
 	let z = -total / 2;
 	while (z < total / 2) {
@@ -203,9 +275,9 @@ function makeDashLine() {
 roadGroup.add(makeDashLine());
 
 // ground / grass on each side
-function makeGroundSide(side) {
-	const w = 120,
-		h = CONFIG.roadLength;
+function makeGroundSide(side: number): THREE.Mesh {
+	const w = 120;
+	const h = CONFIG.roadLength;
 	const geo = new THREE.PlaneGeometry(w, h, 8, 20);
 	const mat = new THREE.MeshStandardMaterial({
 		color: side < 0 ? 0x3a6b2a : 0x2d5a1e,
@@ -221,9 +293,10 @@ roadGroup.add(makeGroundSide(-1));
 roadGroup.add(makeGroundSide(1));
 
 // ─── CAR ──────────────────────────────────────────────────────
+
 const car = new THREE.Group();
 car.position.set(0, 0, 0);
-
+car.rotation.y = Math.PI;
 scene.add(car);
 
 // Materials
@@ -383,8 +456,8 @@ const tlGeo = new THREE.BoxGeometry(0.5, 0.15, 0.05);
 });
 
 // ── Wheels ──
-const wheelMeshes = [];
-const wheelPositions = [
+const wheelMeshes: THREE.Group[] = [];
+const wheelPositions: WheelPosition[] = [
 	{ x: -1.0, y: 0, z: -1.5 }, // front-left
 	{ x: 1.0, y: 0, z: -1.5 }, // front-right
 	{ x: -1.0, y: 0, z: 1.5 }, // rear-left
@@ -463,7 +536,7 @@ car.add(plate);
 // ─── PARALLAX SCENERY ────────────────────────────────────────
 
 // Helper: create varied trees
-function createTree() {
+function createTree(): THREE.Group {
 	const group = new THREE.Group();
 	const trunkH = 2 + Math.random() * 3;
 	const trunkR = 0.12 + Math.random() * 0.1;
@@ -504,7 +577,7 @@ function createTree() {
 }
 
 // Helper: create deciduous tree (rounded)
-function createRoundTree() {
+function createRoundTree(): THREE.Group {
 	const group = new THREE.Group();
 	const trunkH = 1.5 + Math.random() * 2;
 	const trunkR = 0.1 + Math.random() * 0.08;
@@ -536,7 +609,7 @@ function createRoundTree() {
 }
 
 // Helper: create utility pole
-function createPole() {
+function createPole(): THREE.Group {
 	const group = new THREE.Group();
 	const poleH = 5 + Math.random() * 1.5;
 	const poleGeo = new THREE.CylinderGeometry(0.06, 0.08, poleH, 8);
@@ -585,7 +658,7 @@ function createPole() {
 }
 
 // Helper: create distant hill
-function createHill() {
+function createHill(): THREE.Group {
 	const group = new THREE.Group();
 	const h = 8 + Math.random() * 18;
 	const r = 15 + Math.random() * 25;
@@ -616,7 +689,7 @@ function createHill() {
 }
 
 // Helper: create cloud
-function createCloud() {
+function createCloud(): THREE.Group {
 	const group = new THREE.Group();
 	const count = 3 + Math.floor(Math.random() * 4);
 	const cloudMat = new THREE.MeshStandardMaterial({
@@ -641,7 +714,7 @@ function createCloud() {
 }
 
 // Helper: create bush / small roadside plant
-function createBush() {
+function createBush(): THREE.Group {
 	const group = new THREE.Group();
 	const count = 2 + Math.floor(Math.random() * 3);
 	for (let i = 0; i < count; i++) {
@@ -668,7 +741,7 @@ function createBush() {
 }
 
 // Helper: create a rock
-function createRock() {
+function createRock(): THREE.Mesh {
 	const r = 0.2 + Math.random() * 0.6;
 	const geo = new THREE.DodecahedronGeometry(r, 0);
 	const mat = new THREE.MeshStandardMaterial({
@@ -683,7 +756,7 @@ function createRock() {
 }
 
 // Helper: create a small car (for passing/other vehicles)
-function createSmallCar() {
+function createSmallCar(): THREE.Group {
 	const group = new THREE.Group();
 	const color = new THREE.Color().setHSL(Math.random(), 0.5, 0.4);
 	const mat = new THREE.MeshStandardMaterial({
@@ -706,12 +779,13 @@ function createSmallCar() {
 
 	const wGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.15, 12);
 	const wMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-	[
+	const wheelCoords: [number, number, number][] = [
 		[-0.85, 0.25, -1.1],
 		[0.85, 0.25, -1.1],
 		[-0.85, 0.25, 1.1],
 		[0.85, 0.25, 1.1],
-	].forEach((p) => {
+	];
+	wheelCoords.forEach((p) => {
 		const w = new THREE.Mesh(wGeo, wMat);
 		w.rotation.z = Math.PI / 2;
 		w.position.set(...p);
@@ -722,7 +796,8 @@ function createSmallCar() {
 }
 
 // ─── SCENERY POOLS ───────────────────────────────────────────
-const sceneryPools = {
+
+const sceneryPools: SceneryPools = {
 	nearGround: { items: [], speed: CONFIG.speed, zMin: -5, zMax: 30, count: 20 },
 	trees: {
 		items: [],
@@ -768,22 +843,26 @@ const sceneryPools = {
 	},
 };
 
-function initPool(pool, createFn, positionFn) {
+function initPool(
+	pool: SceneryPool,
+	createFn: CreateFn,
+	positionFn: PositionFn,
+): void {
 	for (let i = 0; i < pool.count; i++) {
 		const item = createFn();
 		positionFn(item, i, pool.count);
 		scene.add(item);
-		pool.items.push(item);
+		pool.items.push(item as THREE.Group);
 	}
 }
 
 // Near ground: bushes and rocks right beside the road
 initPool(
 	sceneryPools.nearGround,
-	() => {
+	(): THREE.Group | THREE.Mesh => {
 		return Math.random() > 0.5 ? createBush() : createRock();
 	},
-	(item, i, total) => {
+	(item: THREE.Object3D, i: number, total: number): void => {
 		const side = i % 2 === 0 ? -1 : 1;
 		const x = side * (CONFIG.roadWidth / 2 + 1 + Math.random() * 4);
 		const z =
@@ -797,10 +876,10 @@ initPool(
 // Trees: left and right side, further from road
 initPool(
 	sceneryPools.trees,
-	() => {
+	(): THREE.Group => {
 		return Math.random() > 0.4 ? createTree() : createRoundTree();
 	},
-	(item, i, total) => {
+	(item: THREE.Object3D, i: number, total: number): void => {
 		const side = Math.random() > 0.5 ? -1 : 1;
 		const x = side * (CONFIG.roadWidth / 2 + 6 + Math.random() * 20);
 		const z =
@@ -813,25 +892,29 @@ initPool(
 );
 
 // Poles along the road
-initPool(sceneryPools.poles, createPole, (item, i, total) => {
-	const side = i % 2 === 0 ? -1 : 1;
-	const x = side * (CONFIG.roadWidth / 2 + 1.5 + Math.random() * 1.5);
-	const z =
-		(i / total) * (sceneryPools.poles.zMax - sceneryPools.poles.zMin) +
-		sceneryPools.poles.zMin;
-	item.position.set(x, 0, z);
-});
+initPool(
+	sceneryPools.poles,
+	createPole,
+	(item: THREE.Object3D, i: number, total: number): void => {
+		const side = i % 2 === 0 ? -1 : 1;
+		const x = side * (CONFIG.roadWidth / 2 + 1.5 + Math.random() * 1.5);
+		const z =
+			(i / total) * (sceneryPools.poles.zMax - sceneryPools.poles.zMin) +
+			sceneryPools.poles.zMin;
+		item.position.set(x, 0, z);
+	},
+);
 
 // Mid-ground: more trees and bushes
 initPool(
 	sceneryPools.midGround,
-	() => {
+	(): THREE.Group => {
 		const r = Math.random();
 		if (r < 0.4) return createTree();
 		if (r < 0.7) return createRoundTree();
 		return createBush();
 	},
-	(item, i, total) => {
+	(item: THREE.Object3D, i: number, total: number): void => {
 		const side = Math.random() > 0.5 ? -1 : 1;
 		const x = side * (CONFIG.roadWidth / 2 + 15 + Math.random() * 30);
 		const z =
@@ -845,40 +928,54 @@ initPool(
 );
 
 // Far hills
-initPool(sceneryPools.farHills, createHill, (item, i, total) => {
-	const side = i % 2 === 0 ? -1 : 1;
-	const x = side * (60 + Math.random() * 120);
-	const z =
-		(i / total) * (sceneryPools.farHills.zMax - sceneryPools.farHills.zMin) +
-		sceneryPools.farHills.zMin;
-	item.position.set(x, -3, z);
-});
+initPool(
+	sceneryPools.farHills,
+	createHill,
+	(item: THREE.Object3D, i: number, total: number): void => {
+		const side = i % 2 === 0 ? -1 : 1;
+		const x = side * (60 + Math.random() * 120);
+		const z =
+			(i / total) * (sceneryPools.farHills.zMax - sceneryPools.farHills.zMin) +
+			sceneryPools.farHills.zMin;
+		item.position.set(x, -3, z);
+	},
+);
 
 // Clouds
-initPool(sceneryPools.clouds, createCloud, (item, i, total) => {
-	const x = (Math.random() - 0.5) * 300;
-	const y = 40 + Math.random() * 30;
-	const z =
-		(i / total) * (sceneryPools.clouds.zMax - sceneryPools.clouds.zMin) +
-		sceneryPools.clouds.zMin;
-	item.position.set(x, y, z);
-	const s = 0.5 + Math.random() * 1.0;
-	item.scale.set(s, s, s);
-});
+initPool(
+	sceneryPools.clouds,
+	createCloud,
+	(item: THREE.Object3D, i: number, total: number): void => {
+		const x = (Math.random() - 0.5) * 300;
+		const y = 40 + Math.random() * 30;
+		const z =
+			(i / total) * (sceneryPools.clouds.zMax - sceneryPools.clouds.zMin) +
+			sceneryPools.clouds.zMin;
+		item.position.set(x, y, z);
+		const s = 0.5 + Math.random() * 1.0;
+		item.scale.set(s, s, s);
+	},
+);
 
 // Other cars
-initPool(sceneryPools.otherCars, createSmallCar, (item, i, total) => {
-	const lane = i % 2 === 0 ? -1 : 1;
-	const x = lane * (CONFIG.roadWidth / 2 - 2.5);
-	const z =
-		(i / total) * (sceneryPools.otherCars.zMax - sceneryPools.otherCars.zMin) +
-		sceneryPools.otherCars.zMin;
-	item.position.set(x, 0, z);
-	item.rotation.y = lane === -1 ? 0 : Math.PI;
-});
+initPool(
+	sceneryPools.otherCars,
+	createSmallCar,
+	(item: THREE.Object3D, i: number, total: number): void => {
+		const lane = i % 2 === 0 ? -1 : 1;
+		const x = lane * (CONFIG.roadWidth / 2 - 2.5);
+		const z =
+			(i / total) *
+				(sceneryPools.otherCars.zMax - sceneryPools.otherCars.zMin) +
+			sceneryPools.otherCars.zMin;
+		item.position.set(x, 0, z);
+		item.rotation.y = lane === -1 ? 0 : Math.PI;
+	},
+);
 
 // ─── CAMERA CONTROLS ──────────────────────────────────────────
-const cameraControls = {
+
+const cameraControls: CameraControls = {
 	basePosition: new THREE.Vector3(6, 3.5, 10),
 	position: new THREE.Vector3(6, 3.5, 10),
 	target: new THREE.Vector3(0, 1, 0),
@@ -896,9 +993,11 @@ const cameraControls = {
 
 	// Zoom
 	zoom: 1.0,
+
+	orbitTarget: new THREE.Vector3(0, 1, 0),
 };
 
-function updateCameraFromOrbit() {
+function updateCameraFromOrbit(): void {
 	const cc = cameraControls;
 	const r = cc.orbitRadius / cc.zoom;
 	const x = cc.orbitTarget.x + r * Math.sin(cc.orbitX) * Math.cos(cc.orbitY);
@@ -908,16 +1007,14 @@ function updateCameraFromOrbit() {
 	camera.lookAt(cc.orbitTarget);
 }
 
-cameraControls.orbitTarget = new THREE.Vector3(0, 1, 0);
-
 // Mouse events
-canvas.addEventListener("mousedown", (e) => {
+canvas.addEventListener("mousedown", (e: MouseEvent) => {
 	cameraControls.isDragging = true;
 	cameraControls.prevMouse.x = e.clientX;
 	cameraControls.prevMouse.y = e.clientY;
 });
 
-canvas.addEventListener("mousemove", (e) => {
+canvas.addEventListener("mousemove", (e: MouseEvent) => {
 	if (!cameraControls.isDragging) return;
 	const dx = e.clientX - cameraControls.prevMouse.x;
 	const dy = e.clientY - cameraControls.prevMouse.y;
@@ -940,7 +1037,7 @@ canvas.addEventListener("mouseleave", () => {
 // Scroll zoom
 canvas.addEventListener(
 	"wheel",
-	(e) => {
+	(e: WheelEvent) => {
 		e.preventDefault();
 		cameraControls.zoom = Math.max(
 			0.5,
@@ -951,7 +1048,7 @@ canvas.addEventListener(
 );
 
 // Touch support
-canvas.addEventListener("touchstart", (e) => {
+canvas.addEventListener("touchstart", (e: TouchEvent) => {
 	if (e.touches.length === 1) {
 		cameraControls.isDragging = true;
 		cameraControls.prevMouse.x = e.touches[0].clientX;
@@ -961,7 +1058,7 @@ canvas.addEventListener("touchstart", (e) => {
 
 canvas.addEventListener(
 	"touchmove",
-	(e) => {
+	(e: TouchEvent) => {
 		if (!cameraControls.isDragging || e.touches.length !== 1) return;
 		e.preventDefault();
 		const dx = e.touches[0].clientX - cameraControls.prevMouse.x;
@@ -982,15 +1079,15 @@ canvas.addEventListener("touchend", () => {
 });
 
 // Keyboard
-const keys = {};
-window.addEventListener("keydown", (e) => {
+const keys: KeyState = {};
+window.addEventListener("keydown", (e: KeyboardEvent) => {
 	keys[e.key.toLowerCase()] = true;
 });
-window.addEventListener("keyup", (e) => {
+window.addEventListener("keyup", (e: KeyboardEvent) => {
 	keys[e.key.toLowerCase()] = false;
 });
 
-function updateCameraKeyboard(dt) {
+function updateCameraKeyboard(dt: number): void {
 	const speed = 15 * dt;
 	const forward = new THREE.Vector3();
 	camera.getWorldDirection(forward);
@@ -1017,25 +1114,27 @@ function updateCameraKeyboard(dt) {
 }
 
 // ─── ROAD TEXTURE ANIMATION ─────────────────────────────────
-const roadOffset = { value: 0 };
 
-function updateRoadTexture(time) {
+const _roadOffset = { value: 0 };
+
+function _updateRoadTexture(time: number): void {
 	const offset = (time * CONFIG.speed * 0.02) % 1;
 	// Animate each road element
 	roadGroup.children.forEach((child) => {
-		if (child.material && child.material.map) {
+		if (child instanceof THREE.Mesh && child.material.map) {
 			child.material.map.offset.y = offset;
 		}
 	});
 	// Animate dashed lines
 	roadGroup.children.forEach((child) => {
-		if (child.isGroup) {
+		if (child instanceof THREE.Group) {
 			child.position.z = -(time * CONFIG.speed) % 5;
 		}
 	});
 }
 
 // ─── DUST PARTICLES ─────────────────────────────────────────
+
 const particleCount = 200;
 const particleGeo = new THREE.BufferGeometry();
 const particlePositions = new Float32Array(particleCount * 3);
@@ -1067,10 +1166,11 @@ const particles = new THREE.Points(particleGeo, particleMat);
 scene.add(particles);
 
 // ─── ANIMATION LOOP ─────────────────────────────────────────
+
 const clock = new THREE.Clock();
 let elapsed = 0;
 
-function animate() {
+function animate(): void {
 	requestAnimationFrame(animate);
 	const dt = Math.min(clock.getDelta(), 0.05);
 	elapsed += dt;
@@ -1097,8 +1197,8 @@ function animate() {
 	car.rotation.x = bobPitch;
 
 	// ── Update scenery pools ──
-	Object.values(sceneryPools).forEach((pool) => {
-		pool.items.forEach((item) => {
+	Object.values(sceneryPools).forEach((pool: SceneryPool) => {
+		pool.items.forEach((item: THREE.Group) => {
 			item.position.z -= pool.speed * dt;
 
 			// Reset when behind camera
@@ -1133,7 +1233,7 @@ function animate() {
 	// ── Road scrolling animation (subtle texture shift) ──
 	// Move road elements for visual feedback
 	roadGroup.children.forEach((child) => {
-		if (child.isGroup) {
+		if (child instanceof THREE.Group) {
 			// dashed lines
 			child.position.z -= CONFIG.speed * dt;
 			if (child.position.z < -5) {
@@ -1143,7 +1243,8 @@ function animate() {
 	});
 
 	// ── Particles ──
-	const positions = particles.geometry.attributes.position.array;
+	const positions = particles.geometry.attributes.position
+		.array as Float32Array;
 	for (let i = 0; i < particleCount; i++) {
 		positions[i * 3 + 2] -= CONFIG.speed * dt * 0.5;
 		positions[i * 3 + 1] += Math.sin(elapsed * 2 + i) * 0.01;
@@ -1165,6 +1266,7 @@ function animate() {
 }
 
 // ─── RESIZE ──────────────────────────────────────────────────
+
 window.addEventListener("resize", () => {
 	const w = window.innerWidth;
 	const h = window.innerHeight;
@@ -1174,4 +1276,5 @@ window.addEventListener("resize", () => {
 });
 
 // ─── START ───────────────────────────────────────────────────
+
 animate();
