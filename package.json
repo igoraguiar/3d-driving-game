@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run ./index.html",
+    "build": "bun build ./index.html --outdir ./dist",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

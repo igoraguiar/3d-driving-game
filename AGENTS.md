@@ -13,7 +13,7 @@ A real-time 3D driving simulator built with Three.js that renders a side-view ca
 | 3D Engine | Three.js `^0.184.0` (r184+, physically-based lighting) |
 | Shaders | Inline GLSL via `ShaderMaterial` |
 | Styles | Plain CSS, no framework |
-| Bundling | None — ES modules served directly by Bun |
+| Bundling | `bun build` (production), none (dev) |
 
 ## Directory Map
 
@@ -31,6 +31,7 @@ A real-time 3D driving simulator built with Three.js that renders a side-view ca
 │   ├── particles.ts  # Dust particle system (PointsMaterial)
 │   └── loop.ts       # animate() loop + resize handler (orchestrator)
 ├── style.css         # Minimal overlay styles
+├── dist/             # Production build output (git-ignored)
 ├── tsconfig.json     # TypeScript config (strict, noEmit)
 ├── package.json      # Dependencies + scripts
 └── PROMPT.md         # Original design brief
@@ -62,6 +63,7 @@ types ← config ← scene ←──┬→ road
 bun install          # Install dependencies (three + @types/three)
 bun run dev          # Start dev server (opens index.html in browser)
 bun run typecheck    # Run TypeScript type checker (no emit)
+bun run build        # Bundle production build to dist/
 ```
 
 No test runner or linter is configured. Add one before introducing complex refactors.
@@ -87,7 +89,7 @@ No test runner or linter is configured. Add one before introducing complex refac
 ### 🚫 Never
 
 - Use `any`, `// @ts-ignore`, or `as any` — fix the type properly instead.
-- Commit `node_modules/`, `.env`, or build artifacts (`.gitignore` already covers `node_modules/`).
+- Commit `node_modules/`, `.env`, or `dist/` (`.gitignore` covers all three).
 - Inline-create geometry or materials inside the `animate()` loop (causes GC pressure).
 - Use `innerHTML` or inline event handlers in HTML.
 - Add inline CSS styles to elements; extend `style.css` instead.
@@ -154,5 +156,4 @@ function createTree(): THREE.Group {
 
 - `scenery.ts` is the largest module (~300 lines). If it grows beyond 400 lines, split factories into `scenery/factories.ts`.
 - `car.ts` could export a `buildCar()` function instead of a module-level singleton, enabling multiple cars or scene presets.
-- A proper build step (Vite or esbuild) is not needed until ES module imports grow beyond `three` + local CSS.
-- `tsconfig.json` uses `noEmit: true` — Bun handles transpilation at runtime. If a build step is added later, switch to `module: "ESNext"` with a bundler.
+- `bun build` handles production bundling. The output in `dist/` is a single bundled JS file (~930KB with Three.js inlined). For code splitting or tree shaking, consider Vite or esbuild.
