@@ -1,0 +1,10 @@
+{
+  "name": "3d-driving-game",
+  "private": true,
+  "scripts": {
+    "dev": "bun run ./index.html"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
+  }
+}
